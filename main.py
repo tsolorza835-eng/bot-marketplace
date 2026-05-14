@@ -78,13 +78,19 @@ def buscar_oportunidades(
         page = context.new_page()
 
         print(f"Abriendo búsqueda: {busqueda}")
-        page.goto(url_busqueda)
-        page.wait_for_timeout(5000)
+        page.goto(url_busqueda, wait_until="networkidle")
+        page.wait_for_timeout(8000)
 
-        # Scroll para cargar resultados
-        for _ in range(5):
+        # Esperar explícitamente a que aparezcan enlaces de Marketplace (si cargan)
+        try:
+            page.wait_for_selector("a[href*='/marketplace/item/']", timeout=10000)
+        except Exception:
+            print("No aparecieron enlaces inmediatamente; continuando con scroll.")
+
+        # Scroll para cargar más resultados
+        for _ in range(10):
             page.mouse.wheel(0, 3000)
-            page.wait_for_timeout(1500)
+            page.wait_for_timeout(2000)
 
         # Obtener enlaces únicos
         enlaces = page.locator("a[href*='/marketplace/item/']")

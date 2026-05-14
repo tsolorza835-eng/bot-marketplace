@@ -82,7 +82,7 @@ def buscar_oportunidades(
     precio_minimo=0,
     precio_maximo=999999999,
     puntaje_minimo=40,
-    max_Resultados=20,
+    max_resultados=20,
 ):
     """
     Versión básica para dejar el bot funcionando nuevamente.

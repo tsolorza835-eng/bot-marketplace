@@ -1,0 +1,4 @@
+.env
+mi_sesion.json
+venv/
+__pycache__/

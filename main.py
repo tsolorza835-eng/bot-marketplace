@@ -1,16 +1,10 @@
 import re
 import time
+from urllib.parse import quote
 from playwright.sync_api import sync_playwright
 
 
 def extraer_precio_num(precio_texto):
-    """
-    Convierte textos como:
-    "$3.500.000"
-    "3,500,000"
-    "CLP 4.200.000"
-    a un número entero.
-    """
     if not precio_texto:
         return 0
 
@@ -26,15 +20,10 @@ def extraer_precio_num(precio_texto):
 
 
 def evaluar_oportunidad(titulo, precio, anio_minimo=2010):
-    """
-    Calcula un puntaje simple basado en:
-    - Año detectado en el título
-    - Marca reconocida
-    """
     puntaje = 50
     titulo_lower = titulo.lower()
 
-    # Detectar año en el título
+    # Detectar año
     anios = re.findall(r"\b(19\d{2}|20\d{2})\b", titulo)
     anio_detectado = None
 
@@ -42,12 +31,12 @@ def evaluar_oportunidad(titulo, precio, anio_minimo=2010):
         try:
             anio_detectado = int(anios[0])
         except:
-            anio_detectado = None
+            pass
 
     if anio_detectado and anio_detectado >= anio_minimo:
         puntaje += 20
 
-    # Marcas con alta demanda
+    # Marcas reconocidas
     marcas = [
         "toyota",
         "honda",
@@ -84,18 +73,89 @@ def buscar_oportunidades(
     puntaje_minimo=40,
     max_resultados=20,
 ):
-    """
-    Versión básica para dejar el bot funcionando nuevamente.
-    Devuelve una lista vacía mientras se corrige el scraper.
-    """
+    oportunidades = []
+
+    url_busqueda = (
+        "https://www.facebook.com/marketplace/concepcion/vehicles"
+        f"?query={quote(busqueda)}"
+    )
 
     print(f"Abriendo búsqueda: {busqueda}")
-    print("No aparecieron enlaces inmediatamente; continuando con scroll.")
-    time.sleep(2)
-    print("Se encontraron 0 publicaciones.")
+    print(f"URL: {url_busqueda}")
 
-    # Lista de oportunidades (vacía por ahora)
-    oportunidades = []
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=["--no-sandbox"]
+            )
+
+            context = browser.new_context()
+
+            # Si existe la sesión guardada, intenta cargarla
+            try:
+                context = browser.new_context(storage_state="mi_sesion.json")
+                print("Sesión cargada correctamente.")
+            except Exception:
+                print("No se pudo cargar mi_sesion.json. Continuando sin sesión.")
+
+            page = context.new_page()
+
+            page.goto(url_busqueda, wait_until="networkidle", timeout=60000)
+            page.wait_for_timeout(8000)
+
+            # Captura y HTML para diagnóstico
+            page.screenshot(path="debug_marketplace.png", full_page=True)
+
+            with open("debug_marketplace.html", "w", encoding="utf-8") as f:
+                f.write(page.content())
+
+            print("Archivos de diagnóstico creados.")
+            print("No aparecieron enlaces inmediatamente; continuando con scroll.")
+
+            # Scroll
+            for _ in range(10):
+                page.mouse.wheel(0, 3000)
+                page.wait_for_timeout(2000)
+
+            # Buscar enlaces de Marketplace
+            enlaces = page.locator(
+                "a[href*='/marketplace/item/'], "
+                "a[href*='facebook.com/marketplace/item/']"
+            )
+
+            total = enlaces.count()
+            print(f"Enlaces detectados por Playwright: {total}")
+
+            resultados = []
+            vistos = set()
+
+            for i in range(total):
+                try:
+                    href = enlaces.nth(i).get_attribute("href")
+
+                    if href:
+                        if href.startswith("/"):
+                            href = "https://www.facebook.com" + href
+
+                        href = href.split("?")[0]
+
+                        if href not in vistos:
+                            vistos.add(href)
+                            resultados.append(href)
+                except Exception:
+                    pass
+
+            print(f"Se encontraron {len(resultados)} publicaciones.")
+
+            # Por ahora, devolver lista vacía.
+            # Cuando confirmemos que Facebook entrega enlaces,
+            # agregaremos el análisis completo de cada publicación.
+
+            browser.close()
+
+    except Exception as e:
+        print(f"Error en buscar_oportunidades: {e}")
 
     return oportunidades
 

@@ -144,17 +144,14 @@ def buscar_oportunidades(
 
                 precio_num = extraer_precio_num(precio)
 
-                if (
-                    puntaje >= puntaje_minimo
-                    and precio_minimo <= precio_num <= precio_maximo
-                ):
-                    oportunidades.append({
-                        "titulo": titulo,
-                        "precio": precio,
-                        "puntaje": puntaje,
-                        "categoria": categoria,
-                        "url": url,
-                    })
+                # Agregar siempre la publicación para pruebas
+oportunidades.append({
+    "titulo": titulo,
+    "precio": precio,
+    "puntaje": puntaje,
+    "categoria": categoria,
+    "url": url,
+})
 
                 detalle.close()
 

@@ -145,13 +145,13 @@ def buscar_oportunidades(
                 precio_num = extraer_precio_num(precio)
 
                 # Agregar siempre la publicación para pruebas
-oportunidades.append({
-    "titulo": titulo,
-    "precio": precio,
-    "puntaje": puntaje,
-    "categoria": categoria,
-    "url": url,
-})
+                oportunidades.append({
+                    "titulo": titulo,
+                    "precio": precio,
+                    "puntaje": puntaje,
+                    "categoria": categoria,
+                    "url": url,
+                })
 
                 detalle.close()
 

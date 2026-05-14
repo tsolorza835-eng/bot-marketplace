@@ -68,7 +68,7 @@ def buscar_oportunidades(
     oportunidades = []
 
     url_busqueda = (
-        "https://www.facebook.com/marketplace/category/vehicles"
+        "https://www.facebook.com/marketplace/concepcion/vehicles"
         f"?query={quote(busqueda)}"
     )
 
@@ -93,7 +93,10 @@ def buscar_oportunidades(
             page.wait_for_timeout(2000)
 
         # Obtener enlaces únicos
-        enlaces = page.locator("a[href*='/marketplace/item/']")
+        enlaces = page.locator(
+            "a[href*='/marketplace/item/'], "
+            "a[href*='facebook.com/marketplace/item/']"
+        )
         total = enlaces.count()
 
         resultados = []

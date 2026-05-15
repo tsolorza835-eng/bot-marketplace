@@ -69,7 +69,7 @@ async def manejar_mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE):
             precio_minimo=precio_minimo,
             precio_maximo=precio_maximo,
             puntaje_minimo=puntaje_minimo,
-            max_resultados=10,
+            max_resultados=3,
         )
 
         if not resultados:
@@ -78,7 +78,7 @@ async def manejar_mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        for item in resultados[:10]:
+        for item in resultados[:3]:
             mensaje = (
                 f"🚗 {item['titulo']}\n"
                 f"💰 {item['precio']}\n"

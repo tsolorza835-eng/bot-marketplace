@@ -7,12 +7,9 @@ from playwright.sync_api import sync_playwright
 def extraer_precio_num(precio_texto):
     if not precio_texto:
         return 0
-
     numeros = re.sub(r"[^\d]", "", str(precio_texto))
-
     if not numeros:
         return 0
-
     try:
         return int(numeros)
     except:
@@ -23,10 +20,8 @@ def evaluar_oportunidad(titulo, precio, anio_minimo=2010):
     puntaje = 50
     titulo_lower = titulo.lower()
 
-    # Detectar año
     anios = re.findall(r"\b(19\d{2}|20\d{2})\b", titulo)
     anio_detectado = None
-
     if anios:
         try:
             anio_detectado = int(anios[0])
@@ -36,23 +31,10 @@ def evaluar_oportunidad(titulo, precio, anio_minimo=2010):
     if anio_detectado and anio_detectado >= anio_minimo:
         puntaje += 20
 
-    # Marcas reconocidas
-    marcas = [
-        "toyota",
-        "honda",
-        "mazda",
-        "hyundai",
-        "kia",
-        "nissan",
-        "subaru",
-        "suzuki",
-        "chevrolet",
-    ]
-
+    marcas = ["toyota", "honda", "mazda", "hyundai", "kia", "nissan", "subaru", "suzuki", "chevrolet"]
     if any(marca in titulo_lower for marca in marcas):
         puntaje += 10
 
-    # Clasificación
     if puntaje >= 90:
         categoria = "Excelente oportunidad"
     elif puntaje >= 80:
@@ -63,6 +45,58 @@ def evaluar_oportunidad(titulo, precio, anio_minimo=2010):
         categoria = "Poco atractiva"
 
     return puntaje, categoria
+
+
+def extraer_datos_publicacion(page):
+    """Extrae título y precio de una página de publicación de Marketplace."""
+    titulo = ""
+    precio = ""
+
+    # Intentar extraer título
+    selectores_titulo = [
+        "h1",
+        "[data-testid='marketplace-pdp-title']",
+        "span[class*='x1lliihq']",
+    ]
+    for sel in selectores_titulo:
+        try:
+            el = page.locator(sel).first
+            if el.count() > 0:
+                texto = el.inner_text(timeout=3000).strip()
+                if texto and len(texto) > 3:
+                    titulo = texto
+                    break
+        except:
+            pass
+
+    # Intentar extraer precio
+    selectores_precio = [
+        "[data-testid='marketplace-pdp-price']",
+        "span:has-text('$')",
+        "div:has-text('$'):not(:has(*))",  # texto directo con $
+    ]
+    for sel in selectores_precio:
+        try:
+            el = page.locator(sel).first
+            if el.count() > 0:
+                texto = el.inner_text(timeout=3000).strip()
+                if "$" in texto or any(c.isdigit() for c in texto):
+                    precio = texto
+                    break
+        except:
+            pass
+
+    # Fallback: buscar precio en el texto completo de la página
+    if not precio:
+        try:
+            contenido = page.content()
+            match = re.search(r'\$\s?[\d\.,]+', contenido)
+            if match:
+                precio = match.group(0)
+        except:
+            pass
+
+    return titulo, precio
 
 
 def buscar_oportunidades(
@@ -85,72 +119,100 @@ def buscar_oportunidades(
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=["--no-sandbox"]
-            )
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
 
-            context = browser.new_context()
-
-            # Si existe la sesión guardada, intenta cargarla
+            # Cargar sesión si existe
             try:
                 context = browser.new_context(storage_state="mi_sesion.json")
                 print("Sesión cargada correctamente.")
             except Exception:
+                context = browser.new_context()
                 print("No se pudo cargar mi_sesion.json. Continuando sin sesión.")
 
             page = context.new_page()
-
             page.goto(url_busqueda, wait_until="networkidle", timeout=60000)
             page.wait_for_timeout(8000)
 
-            # Captura y HTML para diagnóstico
-            page.screenshot(path="debug_marketplace.png", full_page=True)
-
-            with open("debug_marketplace.html", "w", encoding="utf-8") as f:
-                f.write(page.content())
-
-            print("Archivos de diagnóstico creados.")
-            print("No aparecieron enlaces inmediatamente; continuando con scroll.")
-
-            # Scroll
+            # Scroll para cargar más resultados
             for _ in range(10):
                 page.mouse.wheel(0, 3000)
                 page.wait_for_timeout(2000)
 
-            # Buscar enlaces de Marketplace
+            # Recolectar URLs únicas
             enlaces = page.locator(
                 "a[href*='/marketplace/item/'], "
                 "a[href*='facebook.com/marketplace/item/']"
             )
-
             total = enlaces.count()
-            print(f"Enlaces detectados por Playwright: {total}")
+            print(f"Enlaces detectados: {total}")
 
-            resultados = []
+            urls_unicas = []
             vistos = set()
-
             for i in range(total):
                 try:
                     href = enlaces.nth(i).get_attribute("href")
-
                     if href:
                         if href.startswith("/"):
                             href = "https://www.facebook.com" + href
-
                         href = href.split("?")[0]
-
                         if href not in vistos:
                             vistos.add(href)
-                            resultados.append(href)
-                except Exception:
+                            urls_unicas.append(href)
+                except:
                     pass
 
-            print(f"Se encontraron {len(resultados)} publicaciones.")
+            print(f"URLs únicas encontradas: {len(urls_unicas)}")
 
-            # Por ahora, devolver lista vacía.
-            # Cuando confirmemos que Facebook entrega enlaces,
-            # agregaremos el análisis completo de cada publicación.
+            # Analizar publicaciones
+            for url in urls_unicas[:max_resultados]:  # limita la cantidad a analizar
+                try:
+                    print(f"Analizando: {url}")
+
+                    detalle = context.new_page()
+                    detalle.goto(url, wait_until="networkidle", timeout=60000)
+                    detalle.wait_for_timeout(5000)
+
+                    titulo, precio = extraer_datos_publicacion(detalle)
+
+                    if not titulo or not precio:
+                        detalle.close()
+                        continue
+
+                    precio_num = extraer_precio_num(precio)
+
+                    # Filtrar por precio
+                    if not (precio_minimo <= precio_num <= precio_maximo):
+                        detalle.close()
+                        continue
+
+                    # Evaluar oportunidad
+                    puntaje, categoria = evaluar_oportunidad(
+                        titulo,
+                        precio,
+                        anio_minimo=anio_minimo,
+                    )
+
+                    # Filtrar por puntaje
+                    if puntaje < puntaje_minimo:
+                        detalle.close()
+                        continue
+
+                    oportunidades.append({
+                        "titulo": titulo,
+                        "precio": precio,
+                        "puntaje": puntaje,
+                        "categoria": categoria,
+                        "url": url,
+                    })
+
+                    print(f"Agregada: {titulo} | {precio} | Puntaje {puntaje}")
+
+                    detalle.close()
+
+                except Exception as e:
+                    print(f"Error analizando publicación: {e}")
+
+            print(f"Oportunidades encontradas: {len(oportunidades)}")
 
             browser.close()
 

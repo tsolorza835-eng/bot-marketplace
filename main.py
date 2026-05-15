@@ -119,24 +119,48 @@ def buscar_oportunidades(
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox",
+                    "--disable-blink-features=AutomationControlled",
+                ],
+            )
 
             # Cargar sesión si existe
             try:
-                context = browser.new_context(storage_state="mi_sesion.json")
+                context = browser.new_context(
+                    storage_state="mi_sesion.json",
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+                    viewport={"width": 1366, "height": 768},
+                    locale="es-CL",
+                    timezone_id="America/Santiago",
+                )
                 print("Sesión cargada correctamente.")
             except Exception:
-                context = browser.new_context()
+                context = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+                    viewport={"width": 1366, "height": 768},
+                    locale="es-CL",
+                    timezone_id="America/Santiago",
+                )
                 print("No se pudo cargar mi_sesion.json. Continuando sin sesión.")
 
             page = context.new_page()
+            page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                }); 
+            """) 
             page.goto(url_busqueda, wait_until="networkidle", timeout=60000)
-            page.wait_for_timeout(8000)
+            page.wait_for_timeout(12000)
 
             # Scroll para cargar más resultados
-            for _ in range(10):
-                page.mouse.wheel(0, 3000)
-                page.wait_for_timeout(2000)
+            for _ in range(20):
+                page.mouse.wheel(0, 4000)
+                page.wait_for_timeout(2500)
+
+            print(f"Título de la página: {page.title()}")
 
             # Recolectar URLs únicas
             enlaces = page.locator(
